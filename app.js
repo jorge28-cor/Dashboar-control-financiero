@@ -27,7 +27,7 @@ const INCOME_CATS = [
 // Investment types grouped by triangle zone
 const INVEST_BY_ZONE = {
   seguridad: [
-    { id: 'cetes',    emoji: '🇲🇽', name: 'CETES' },
+    { id: 'cedears',    emoji: '🇦🇷', name: 'CETES' },
     { id: 'plazo',    emoji: '🏦', name: 'Plazo fijo' },
     { id: 'moneymarket', emoji: '💵', name: 'Money Market' },
     { id: 'cuenta',   emoji: '🏧', name: 'Cta. remunerada' },
