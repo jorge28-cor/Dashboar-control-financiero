@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Finanzas" />
+  <title>Finanzas Personal</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- Splash -->
+  <div id="splash">
+    <div class="splash-icon">💰</div>
+    <div class="splash-title">Finanzas</div>
+    <div class="splash-sub">Cargando tu panorama...</div>
+  </div>
+
+  <!-- Main -->
+  <div id="main" class="hidden">
+    <header id="app-header">
+      <div class="header-top">
+        <div>
+          <div class="header-greeting" id="greeting">Hola 👋</div>
+          <div class="header-date" id="header-date"></div>
+        </div>
+        <button class="btn-icon" id="btn-settings">⚙️</button>
+      </div>
+      <div class="net-worth-block">
+        <div class="nw-label">PATRIMONIO NETO</div>
+        <div class="nw-value" id="net-worth">$0</div>
+        <div class="nw-delta" id="nw-delta"></div>
+      </div>
+    </header>
+
+    <main id="tab-content"></main>
+
+    <!-- Bottom Nav: 6 items with center + -->
+    <nav id="bottom-nav">
+      <button class="nav-btn active" data-tab="overview">
+        <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
+      </button>
+      <button class="nav-btn" data-tab="transactions">
+        <span class="nav-icon">💸</span><span class="nav-label">Gastos</span>
+      </button>
+      <button class="nav-btn nav-add" data-tab="add">
+        <span class="nav-icon-add">+</span>
+      </button>
+      <button class="nav-btn" data-tab="debts">
+        <span class="nav-icon">💳</span><span class="nav-label">Deudas</span>
+      </button>
+      <button class="nav-btn" data-tab="investments">
+        <span class="nav-icon">📈</span><span class="nav-label">Inversión</span>
+      </button>
+    </nav>
+
+    <!-- More FAB -->
+    <button id="btn-more" title="Más secciones">☰</button>
+
+    <!-- More Menu -->
+    <div id="more-menu" class="more-menu hidden">
+      <div class="more-backdrop" id="more-backdrop"></div>
+      <div class="more-sheet">
+        <div class="more-title">Más secciones</div>
+        <div class="more-grid">
+          <button class="more-item" data-tab="budget"><span class="more-icon">📋</span><span class="more-label">Presupuesto</span></button>
+          <button class="more-item" data-tab="goals"><span class="more-icon">🎯</span><span class="more-label">Metas</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Transaction -->
+  <div id="modal-add" class="modal hidden">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">Nueva Transacción</h2>
+      <div class="type-toggle">
+        <button class="type-btn active" data-type="gasto">💸 Gasto</button>
+        <button class="type-btn" data-type="ingreso">💰 Ingreso</button>
+      </div>
+      <div class="form-group">
+        <label>Monto</label>
+        <div class="amount-input-wrap">
+          <span class="currency-sign">$</span>
+          <input type="number" id="inp-amount" placeholder="0.00" inputmode="decimal" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Descripción</label>
+        <input type="text" id="inp-desc" placeholder="ej. Supermercado" />
+      </div>
+      <div class="form-group">
+        <label>Categoría</label>
+        <div class="category-grid" id="category-grid"></div>
+      </div>
+      <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" id="inp-date" />
+      </div>
+      <button class="btn-primary" id="btn-save-tx">Guardar</button>
+      <button class="btn-ghost" id="btn-cancel-tx">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Debt -->
+  <div id="modal-debt" class="modal hidden">
+    <div class="modal-backdrop" id="debt-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title" id="debt-modal-title">Nueva Deuda</h2>
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="inp-debt-name" placeholder="ej. Tarjeta Banamex" />
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <div class="type-toggle" id="debt-type-toggle">
+          <button class="type-btn active" data-dtype="tarjeta">💳 Tarjeta</button>
+          <button class="type-btn" data-dtype="credito">🏦 Crédito</button>
+          <button class="type-btn" data-dtype="hipoteca">🏠 Hipoteca</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Saldo total original ($)</label>
+        <input type="number" id="inp-debt-total" placeholder="ej. 50000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Saldo restante ($)</label>
+        <input type="number" id="inp-debt-remaining" placeholder="ej. 30000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Pago mensual ($)</label>
+        <input type="number" id="inp-debt-monthly" placeholder="ej. 2500" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Tasa de interés anual (%)</label>
+        <input type="number" id="inp-debt-rate" placeholder="ej. 36" inputmode="decimal" />
+      </div>
+      <button class="btn-primary" id="btn-save-debt">Guardar</button>
+      <button class="btn-ghost" id="btn-cancel-debt">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Investment -->
+  <div id="modal-invest" class="modal hidden">
+    <div class="modal-backdrop" id="invest-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title" id="invest-modal-title">Nueva Inversión</h2>
+      <div class="form-group">
+        <label>Nombre / Ticker</label>
+        <input type="text" id="inp-invest-name" placeholder="ej. AAPL, Bitcoin, CETES" />
+      </div>
+      <div class="form-group">
+        <label>Zona del triángulo</label>
+        <div class="triangle-selector" id="triangle-selector">
+          <button class="tri-btn active" data-zone="seguridad">
+            <span class="tri-emoji">🟢</span>
+            <span class="tri-name">Seguridad</span>
+            <span class="tri-sub">CETES, Plazo fijo, Efectivo</span>
+          </button>
+          <button class="tri-btn" data-zone="equilibrio">
+            <span class="tri-emoji">🟡</span>
+            <span class="tri-name">Equilibrio</span>
+            <span class="tri-sub">Fondos, ETFs, Bonos</span>
+          </button>
+          <button class="tri-btn" data-zone="crecimiento">
+            <span class="tri-emoji">🔴</span>
+            <span class="tri-name">Crecimiento</span>
+            <span class="tri-sub">Acciones, Crypto, Negocios</span>
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Tipo específico</label>
+        <div class="invest-type-grid" id="invest-type-grid"></div>
+      </div>
+      <div class="form-group">
+        <label>Valor invertido ($)</label>
+        <input type="number" id="inp-invest-cost" placeholder="ej. 10000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Valor actual ($)</label>
+        <input type="number" id="inp-invest-value" placeholder="ej. 12000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Notas (opcional)</label>
+        <input type="text" id="inp-invest-notes" placeholder="ej. 10 acciones a $1,000" />
+      </div>
+      <button class="btn-primary" id="btn-save-invest">Guardar</button>
+      <button class="btn-ghost" id="btn-cancel-invest">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Settings -->
+  <div id="modal-settings" class="modal hidden">
+    <div class="modal-backdrop" id="settings-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">Configuración</h2>
+      <div class="form-group">
+        <label>Tu nombre</label>
+        <input type="text" id="inp-name" placeholder="ej. Jorge" />
+      </div>
+      <div class="form-group">
+        <label>Ingreso mensual esperado ($)</label>
+        <input type="number" id="inp-income" placeholder="ej. 35000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Perfil de inversor</label>
+        <div class="type-toggle" id="profile-toggle">
+          <button class="type-btn active" data-profile="conservador">🛡️ Conservador</button>
+          <button class="type-btn" data-profile="moderado">⚖️ Moderado</button>
+          <button class="type-btn" data-profile="agresivo">🚀 Agresivo</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Presupuestos por categoría</div>
+        <div id="budget-inputs"></div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Zona de peligro</div>
+        <button class="btn-danger" id="btn-clear-data">🗑️ Borrar todos los datos</button>
+      </div>
+      <button class="btn-primary" id="btn-save-settings">Guardar cambios</button>
+      <button class="btn-ghost" id="btn-cancel-settings">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Goal -->
+  <div id="modal-goal" class="modal hidden">
+    <div class="modal-backdrop" id="goal-backdrop"></div>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 class="modal-title">Nueva Meta</h2>
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="inp-goal-name" placeholder="ej. Vacaciones" />
+      </div>
+      <div class="form-group">
+        <label>Monto objetivo ($)</label>
+        <input type="number" id="inp-goal-target" placeholder="ej. 50000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Ahorro actual ($)</label>
+        <input type="number" id="inp-goal-current" placeholder="ej. 5000" inputmode="decimal" />
+      </div>
+      <div class="form-group">
+        <label>Emoji</label>
+        <div class="emoji-grid" id="emoji-grid"></div>
+      </div>
+      <button class="btn-primary" id="btn-save-goal">Guardar meta</button>
+      <button class="btn-ghost" id="btn-cancel-goal">Cancelar</button>
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
