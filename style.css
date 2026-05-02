@@ -244,3 +244,15 @@ input[type="date"] { color-scheme: dark; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 .tab-enter { animation: tabEnter 0.25s ease; }
 @keyframes tabEnter { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+
+/* ── FINANCIAL STATE ── */
+.fs-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 13px; border-bottom: 1px solid rgba(30,45,69,0.5); }
+.fs-row:last-child { border-bottom: none; }
+.fs-section-label { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 10px 0 4px; }
+.fs-total { font-weight: 700; font-size: 14px; border-top: 1px solid var(--border) !important; border-bottom: none !important; margin-top: 4px; padding-top: 10px !important; }
+.fs-patrimonio { font-weight: 800; font-size: 15px; border-top: 2px solid var(--border) !important; border-bottom: none !important; margin-top: 4px; padding-top: 12px !important; }
+
+/* ── PAY DEBT MODAL ── */
+.pay-debt-summary { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 18px; }
+.pay-debt-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; }
+.pay-debt-row:not(:last-child) { border-bottom: 1px solid var(--border); }
