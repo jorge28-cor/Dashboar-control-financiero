@@ -560,9 +560,9 @@ function renderDebts(container) {
 
 // ── MODAL: PAY DEBT ──
 function openPayDebtModal(debtId) {
-  state.payingDebtId = debtId;
   const debt = state.debts.find(d => d.id === debtId);
   if (!debt) return;
+
   let modal = document.getElementById('modal-pay-debt');
   if (!modal) {
     modal = document.createElement('div');
@@ -573,7 +573,7 @@ function openPayDebtModal(debtId) {
       <div class="modal-sheet">
         <div class="modal-handle"></div>
         <h2 class="modal-title" id="pay-debt-title">Registrar Pago</h2>
-        <div class="debt-pay-info" id="pay-debt-info"></div>
+        <div id="pay-debt-info"></div>
         <div class="form-group">
           <label>Monto pagado ($)</label>
           <div class="amount-input-wrap">
@@ -595,13 +595,19 @@ function openPayDebtModal(debtId) {
     document.getElementById('app').appendChild(modal);
     document.getElementById('pay-debt-backdrop').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('btn-cancel-pay').addEventListener('click', () => modal.classList.add('hidden'));
-    document.getElementById('btn-confirm-pay').addEventListener('click', confirmDebtPayment);
   }
-  const dtype = DEBT_TYPES[debt.type] || {emoji:'💳'};
+
+  // Always update the paying debt ID fresh and replace the confirm button listener
+  modal.dataset.currentDebtId = debtId;
+  const oldBtn = document.getElementById('btn-confirm-pay');
+  const newBtn = oldBtn.cloneNode(true);
+  oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+  newBtn.addEventListener('click', () => confirmDebtPayment(modal.dataset.currentDebtId));
+
   document.getElementById('pay-debt-title').textContent = `Pagar: ${debt.name}`;
   document.getElementById('pay-debt-info').innerHTML = `
     <div class="pay-debt-summary">
-      <div class="pay-debt-row"><span>Saldo restante</span><span style="color:var(--red);font-family:'JetBrains Mono',monospace">${fmt(debt.remaining)}</span></div>
+      <div class="pay-debt-row"><span>Saldo actual</span><span style="color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:700">${fmt(debt.remaining)}</span></div>
       <div class="pay-debt-row"><span>Pago mensual sugerido</span><span style="color:var(--yellow);font-family:'JetBrains Mono',monospace">${fmt(debt.monthly)}</span></div>
       <div class="pay-debt-row"><span>Tasa anual</span><span style="color:var(--muted2)">${debt.rate}%</span></div>
     </div>`;
@@ -611,21 +617,21 @@ function openPayDebtModal(debtId) {
   modal.classList.remove('hidden');
 }
 
-function confirmDebtPayment() {
+function confirmDebtPayment(debtId) {
   const amount = parseFloat(document.getElementById('inp-pay-amount').value);
   const date   = document.getElementById('inp-pay-date').value;
   const note   = document.getElementById('inp-pay-note').value.trim();
   if (!amount || amount <= 0) { toast('Ingresa un monto válido'); return; }
-  const debt = state.debts.find(d => d.id === state.payingDebtId);
-  if (!debt) return;
+  const debt = state.debts.find(d => d.id === debtId);
+  if (!debt) { toast('Error: deuda no encontrada'); return; }
   const prev = debt.remaining;
-  debt.remaining = Math.max(debt.remaining - amount, 0);
-  state.debtPayments.push({ id: uid(), debtId: debt.id, debtName: debt.name, amount, date, note, balanceBefore: prev, balanceAfter: debt.remaining });
+  debt.remaining = Math.max(prev - amount, 0);
+  state.debtPayments.push({ id: uid(), debtId: debt.id, debtName: debt.name, amount, date: date || todayStr(), note, balanceBefore: prev, balanceAfter: debt.remaining });
   save();
   document.getElementById('modal-pay-debt').classList.add('hidden');
   renderTab(); renderHeader();
-  toast(`${fmt(amount)} pagado a ${debt.name} ✓`);
-  if (debt.remaining === 0) setTimeout(() => toast(`🎉 ¡${debt.name} completamente pagada!`), 1500);
+  toast(`${fmt(amount)} pagado — Saldo: ${fmt(debt.remaining)} ✓`);
+  if (debt.remaining === 0) setTimeout(() => toast(`🎉 ¡${debt.name} completamente pagada!`), 1800);
 }
 
 function showDebtHistory(debtId, container) {
@@ -692,127 +698,198 @@ function renderFinancial(container) {
   const investCost   = state.investments.reduce((s,i)=>s+i.cost,0);
   const investGain   = totalInvest - investCost;
   const totalDebt    = state.debts.reduce((s,d)=>s+d.remaining,0);
-  const totalAssets  = cashBalance + totalInvest;
+  const totalAssets  = Math.max(cashBalance,0) + totalInvest;
   const netWorth     = totalAssets - totalDebt;
   const savingRate   = income>0 ? ((income-expense)/income*100).toFixed(1) : 0;
+  const debtToIncome = income>0 ? ((state.debts.reduce((s,d)=>s+d.monthly,0)/income)*100).toFixed(1) : 0;
+  const debtToAsset  = totalAssets>0 ? ((totalDebt/totalAssets)*100).toFixed(1) : 0;
+  const rentInvest   = investCost>0 ? ((investGain/investCost)*100).toFixed(1) : 0;
 
-  // Title
-  const title = document.createElement('div');
-  title.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  // ── HEADER ──
+  const header = document.createElement('div');
+  header.className = 'card';
+  header.style.background = 'linear-gradient(135deg,#151d2e,#1a2540)';
+  header.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
-        <div style="font-size:18px;font-weight:800">Estado Financiero</div>
+        <div style="font-size:16px;font-weight:800;margin-bottom:2px">📑 Estado Financiero</div>
         <div style="font-size:12px;color:var(--muted)">${now.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:10px;color:var(--muted);letter-spacing:1px">PATRIMONIO NETO</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${netWorth>=0?'var(--green)':'var(--red)'}">${fmt(netWorth)}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:800;color:${netWorth>=0?'var(--green)':'var(--red)'}">${fmt(netWorth)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${netWorth>=0?'▲ Activos > Pasivos':'▼ Pasivos > Activos'}</div>
       </div>
     </div>`;
-  container.appendChild(title);
+  container.appendChild(header);
 
-  // ── BALANCE GENERAL ──
-  const balanceCard = document.createElement('div');
-  balanceCard.className = 'card';
-  balanceCard.innerHTML = `
-    <div class="card-title">📊 Balance General</div>
-    <div class="fs-section-label" style="color:var(--green)">ACTIVOS</div>
-    <div class="fs-row"><span>💵 Efectivo / Ahorro</span><span style="color:var(--green)">${fmt(Math.max(cashBalance,0))}</span></div>
-    <div class="fs-row"><span>📈 Inversiones</span><span style="color:var(--accent)">${fmt(totalInvest)}</span></div>
-    <div class="fs-row fs-total"><span>Total Activos</span><span style="color:var(--green)">${fmt(totalAssets)}</span></div>
-    <div style="height:1px;background:var(--border);margin:12px 0"></div>
-    <div class="fs-section-label" style="color:var(--red)">PASIVOS</div>
-    ${state.debts.map(d=>`<div class="fs-row"><span>${DEBT_TYPES[d.type]?.emoji||'💳'} ${d.name}</span><span style="color:var(--red)">${fmt(d.remaining)}</span></div>`).join('') || `<div class="fs-row"><span style="color:var(--muted)">Sin deudas registradas</span><span>—</span></div>`}
-    <div class="fs-row fs-total"><span>Total Pasivos</span><span style="color:var(--red)">${fmt(totalDebt)}</span></div>
-    <div style="height:1px;background:var(--border);margin:12px 0"></div>
-    <div class="fs-row fs-patrimonio"><span>💎 Patrimonio Neto</span><span style="color:${netWorth>=0?'var(--green)':'var(--red)'}">${fmt(netWorth)}</span></div>
-  `;
-  container.appendChild(balanceCard);
+  // ── GRÁFICO: ACTIVOS vs PASIVOS vs PATRIMONIO (barras horizontales) ──
+  const chartCard = document.createElement('div');
+  chartCard.className = 'card';
+  const maxBar = Math.max(totalAssets, totalDebt, Math.abs(netWorth), 1);
+  chartCard.innerHTML = `
+    <div class="card-title">📊 Activos · Pasivos · Patrimonio</div>
+    ${[
+      { label:'Activos', value:totalAssets, color:'#00e5a0', sub: `Efectivo ${fmt(Math.max(cashBalance,0))} + Inversiones ${fmt(totalInvest)}` },
+      { label:'Pasivos', value:totalDebt,   color:'#ff4d6d', sub: `${state.debts.length} deuda(s) activa(s)` },
+      { label:'Patrimonio', value:Math.abs(netWorth), color: netWorth>=0?'#00d4ff':'#ff4d6d', sub: netWorth>=0?'Activos − Pasivos':'⚠️ Patrimonio negativo' },
+    ].map(b=>`
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-size:13px;font-weight:600">${b.label}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${b.color}">${fmt(b.value)}</span>
+        </div>
+        <div style="background:var(--border);border-radius:99px;height:10px;overflow:hidden">
+          <div style="width:${Math.min((b.value/maxBar)*100,100)}%;background:${b.color};height:100%;border-radius:99px;box-shadow:0 0 8px ${b.color}55;transition:width 1s ease"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${b.sub}</div>
+      </div>`).join('')}`;
+  container.appendChild(chartCard);
 
-  // ── ESTADO DE RESULTADOS (mes actual) ──
-  const resultsCard = document.createElement('div');
-  resultsCard.className = 'card';
-  const byCategory = {};
-  curTxs.filter(t=>t.type==='gasto').forEach(t=>{ byCategory[t.category]=(byCategory[t.category]||0)+t.amount; });
-  const topCats = Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  resultsCard.innerHTML = `
-    <div class="card-title">📋 Estado de Resultados — ${now.toLocaleDateString('es-MX',{month:'long'})}</div>
-    <div class="fs-section-label" style="color:var(--green)">INGRESOS</div>
-    ${(() => {
-      const byIncomeCat = {};
-      curTxs.filter(t=>t.type==='ingreso').forEach(t=>{ byIncomeCat[t.category]=(byIncomeCat[t.category]||0)+t.amount; });
-      return Object.entries(byIncomeCat).map(([cat,val])=>{
-        const c = INCOME_CATS.find(x=>x.id===cat)||{emoji:'💵',name:cat};
-        return `<div class="fs-row"><span>${c.emoji} ${c.name}</span><span style="color:var(--green)">${fmt(val)}</span></div>`;
-      }).join('') || `<div class="fs-row"><span style="color:var(--muted)">Sin ingresos este mes</span><span>—</span></div>`;
-    })()}
-    <div class="fs-row fs-total"><span>Total Ingresos</span><span style="color:var(--green)">${fmt(income)}</span></div>
-    <div style="height:1px;background:var(--border);margin:12px 0"></div>
-    <div class="fs-section-label" style="color:var(--red)">GASTOS</div>
-    ${topCats.map(([cat,val])=>{ const c=CATEGORIES.find(x=>x.id===cat)||{emoji:'📦',name:cat}; return `<div class="fs-row"><span>${c.emoji} ${c.name}</span><span style="color:var(--red)">${fmt(val)}</span></div>`; }).join('') || `<div class="fs-row"><span style="color:var(--muted)">Sin gastos este mes</span><span>—</span></div>`}
-    <div class="fs-row fs-total"><span>Total Gastos</span><span style="color:var(--red)">${fmt(expense)}</span></div>
-    <div style="height:1px;background:var(--border);margin:12px 0"></div>
-    <div class="fs-row fs-patrimonio"><span>${income-expense>=0?'✅ Resultado Positivo':'❌ Resultado Negativo'}</span><span style="color:${income-expense>=0?'var(--green)':'var(--red)'}">${fmt(income-expense)}</span></div>
-  `;
-  container.appendChild(resultsCard);
-
-  // ── FLUJO DE CAJA visual ──
+  // ── GRÁFICO: FLUJO 6 MESES (SVG real) ──
   const flowCard = document.createElement('div');
   flowCard.className = 'card';
-  const months = [];
+  const months6 = [];
   for (let i=5; i>=0; i--) {
     let mm=m-i, yy=y; if(mm<0){mm+=12;yy--;}
     const t=txInMonth(allTxs,mm,yy);
     const inc=t.filter(x=>x.type==='ingreso').reduce((s,x)=>s+x.amount,0);
     const exp=t.filter(x=>x.type==='gasto').reduce((s,x)=>s+x.amount,0);
-    months.push({ label:new Date(yy,mm,1).toLocaleDateString('es-MX',{month:'short'}), income:inc, expense:exp, net:inc-exp });
+    months6.push({ label:new Date(yy,mm,1).toLocaleDateString('es-MX',{month:'short'}), inc, exp, net:inc-exp });
   }
-  const maxVal = Math.max(...months.map(x=>Math.max(x.income,x.expense)),1);
+  const W=320, H=120, pad=28, barW=28, gap=(W-pad*2-barW*6)/5;
+  const maxV=Math.max(...months6.map(x=>Math.max(x.inc,x.exp)),1);
+  const scaleH = v => Math.max((v/maxV)*(H-20), 2);
+  const bars = months6.map((mm,i)=>{
+    const x = pad + i*(barW+gap);
+    const hInc = scaleH(mm.inc), hExp = scaleH(mm.exp);
+    const netColor = mm.net>=0?'#00e5a0':'#ff4d6d';
+    return `
+      <rect x="${x}" y="${H-hInc}" width="${barW/2-1}" height="${hInc}" rx="2" fill="#00e5a0" opacity="0.85"/>
+      <rect x="${x+barW/2+1}" y="${H-hExp}" width="${barW/2-1}" height="${hExp}" rx="2" fill="#ff4d6d" opacity="0.85"/>
+      <text x="${x+barW/2}" y="${H+12}" text-anchor="middle" fill="#64748b" font-size="9" font-family="Syne,sans-serif">${mm.label}</text>
+      ${mm.net!==0?`<text x="${x+barW/2}" y="${H-Math.max(hInc,hExp)-3}" text-anchor="middle" fill="${netColor}" font-size="8" font-family="JetBrains Mono,monospace">${mm.net>0?'+':''}${(mm.net/1000).toFixed(0)}k</text>`:''}`;
+  }).join('');
   flowCard.innerHTML = `
     <div class="card-title">💹 Flujo de Caja — 6 meses</div>
-    <div class="mini-chart" style="height:70px">
-      ${months.map(mm=>`
-        <div class="mini-bar-wrap">
-          <div class="mini-bar" style="height:${(mm.income/maxVal)*60}px;background:var(--green);opacity:.85;border-radius:3px 3px 0 0"></div>
-          <div class="mini-bar" style="height:${(mm.expense/maxVal)*60}px;background:var(--red);opacity:.85;margin-top:2px;border-radius:3px 3px 0 0"></div>
-          <div class="mini-bar-label" style="color:${mm.net>=0?'var(--green)':'var(--red)'}">${mm.label}</div>
-        </div>`).join('')}
-    </div>
-    <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)"><span style="width:8px;height:8px;background:var(--green);border-radius:2px;display:inline-block"></span>Ingresos</div>
-      <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>Gastos</div>
-    </div>
-  `;
+    <svg width="100%" viewBox="0 0 ${W} ${H+18}" style="overflow:visible;margin-top:8px">
+      <line x1="${pad}" y1="0" x2="${pad}" y2="${H}" stroke="#1e2d45" stroke-width="1"/>
+      <line x1="${pad}" y1="${H}" x2="${W-pad+10}" y2="${H}" stroke="#1e2d45" stroke-width="1"/>
+      ${bars}
+    </svg>
+    <div style="display:flex;gap:16px;margin-top:6px">
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="width:10px;height:10px;background:#00e5a0;border-radius:2px;display:inline-block"></span>Ingresos</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)"><span style="width:10px;height:10px;background:#ff4d6d;border-radius:2px;display:inline-block"></span>Gastos</div>
+      <div style="font-size:11px;color:var(--muted)">Número = neto del mes</div>
+    </div>`;
   container.appendChild(flowCard);
 
-  // ── INDICADORES CLAVE ──
+  // ── GRÁFICO: GASTOS POR CATEGORÍA (dona SVG) ──
+  const byCategory = {};
+  curTxs.filter(t=>t.type==='gasto').forEach(t=>{ byCategory[t.category]=(byCategory[t.category]||0)+t.amount; });
+  const catEntries = Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  if (catEntries.length > 0) {
+    const donutCard = document.createElement('div');
+    donutCard.className = 'card';
+    const catColors = ['#00d4ff','#ff4d6d','#00e5a0','#ffc857','#b57bee','#f97316'];
+    const total = catEntries.reduce((s,[,v])=>s+v,0);
+    // Build donut
+    const R=50, cx=70, cy=65, stroke=18;
+    const circ = 2*Math.PI*R;
+    let offset=0;
+    const slices = catEntries.map(([cat,val],i)=>{
+      const pct = val/total;
+      const dash = pct*circ;
+      const slice = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${catColors[i]}" stroke-width="${stroke}" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})" style="filter:drop-shadow(0 0 3px ${catColors[i]}66)"/>`;
+      offset += dash;
+      return slice;
+    }).join('');
+    const legend = catEntries.map(([cat,val],i)=>{
+      const c = CATEGORIES.find(x=>x.id===cat)||{emoji:'📦',name:cat};
+      const pct = Math.round((val/total)*100);
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="width:10px;height:10px;background:${catColors[i]};border-radius:2px;flex-shrink:0;display:inline-block"></span><span style="font-size:12px;flex:1">${c.emoji} ${c.name}</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted2)">${pct}%</span></div>`;
+    }).join('');
+    donutCard.innerHTML = `
+      <div class="card-title">🍩 Gastos del mes por categoría</div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <svg width="140" height="130" style="flex-shrink:0">
+          <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#1e2d45" stroke-width="${stroke}"/>
+          ${slices}
+          <text x="${cx}" y="${cy-6}" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="JetBrains Mono,monospace">${fmt(total)}</text>
+          <text x="${cx}" y="${cy+10}" text-anchor="middle" fill="#64748b" font-size="9" font-family="Syne,sans-serif">total gastos</text>
+        </svg>
+        <div style="flex:1">${legend}</div>
+      </div>`;
+    container.appendChild(donutCard);
+  }
+
+  // ── ESTADO DE RESULTADOS ──
+  const resultsCard = document.createElement('div');
+  resultsCard.className = 'card';
+  const byIncomeCat = {};
+  curTxs.filter(t=>t.type==='ingreso').forEach(t=>{ byIncomeCat[t.category]=(byIncomeCat[t.category]||0)+t.amount; });
+  resultsCard.innerHTML = `
+    <div class="card-title">📋 Estado de Resultados — ${now.toLocaleDateString('es-MX',{month:'long'})}</div>
+    <div class="fs-section-label" style="color:var(--green)">INGRESOS</div>
+    ${Object.entries(byIncomeCat).map(([cat,val])=>{ const c=INCOME_CATS.find(x=>x.id===cat)||{emoji:'💵',name:cat}; return `<div class="fs-row"><span>${c.emoji} ${c.name}</span><span style="color:var(--green)">${fmt(val)}</span></div>`; }).join('') || `<div class="fs-row"><span style="color:var(--muted)">Sin ingresos este mes</span><span>—</span></div>`}
+    <div class="fs-row fs-total"><span>Total Ingresos</span><span style="color:var(--green)">${fmt(income)}</span></div>
+    <div style="height:1px;background:var(--border);margin:10px 0"></div>
+    <div class="fs-section-label" style="color:var(--red)">GASTOS</div>
+    ${catEntries.map(([cat,val])=>{ const c=CATEGORIES.find(x=>x.id===cat)||{emoji:'📦',name:cat}; return `<div class="fs-row"><span>${c.emoji} ${c.name}</span><span style="color:var(--red)">${fmt(val)}</span></div>`; }).join('') || `<div class="fs-row"><span style="color:var(--muted)">Sin gastos este mes</span><span>—</span></div>`}
+    <div class="fs-row fs-total"><span>Total Gastos</span><span style="color:var(--red)">${fmt(expense)}</span></div>
+    <div style="height:1px;background:var(--border);margin:10px 0"></div>
+    <div class="fs-row fs-patrimonio"><span>${income-expense>=0?'✅ Resultado':'❌ Resultado'}</span><span style="color:${income-expense>=0?'var(--green)':'var(--red)'};font-weight:800">${income>=expense?'+':''}${fmt(income-expense)}</span></div>`;
+  container.appendChild(resultsCard);
+
+  // ── BALANCE GENERAL ──
+  const balanceCard = document.createElement('div');
+  balanceCard.className = 'card';
+  balanceCard.innerHTML = `
+    <div class="card-title">⚖️ Balance General</div>
+    <div class="fs-section-label" style="color:var(--green)">ACTIVOS</div>
+    <div class="fs-row"><span>💵 Efectivo / Ahorro</span><span style="color:var(--green)">${fmt(Math.max(cashBalance,0))}</span></div>
+    <div class="fs-row"><span>📈 Inversiones</span><span style="color:var(--accent)">${fmt(totalInvest)}</span></div>
+    <div class="fs-row fs-total"><span>Total Activos</span><span style="color:var(--green)">${fmt(totalAssets)}</span></div>
+    <div style="height:1px;background:var(--border);margin:10px 0"></div>
+    <div class="fs-section-label" style="color:var(--red)">PASIVOS</div>
+    ${state.debts.map(d=>`<div class="fs-row"><span>${DEBT_TYPES[d.type]?.emoji||'💳'} ${d.name}</span><span style="color:var(--red)">${fmt(d.remaining)}</span></div>`).join('') || `<div class="fs-row"><span style="color:var(--muted)">Sin deudas</span><span>—</span></div>`}
+    <div class="fs-row fs-total"><span>Total Pasivos</span><span style="color:var(--red)">${fmt(totalDebt)}</span></div>
+    <div style="height:1px;background:var(--border);margin:10px 0"></div>
+    <div class="fs-row fs-patrimonio"><span>💎 Patrimonio Neto</span><span style="color:${netWorth>=0?'var(--green)':'var(--red)'}">${fmt(netWorth)}</span></div>`;
+  container.appendChild(balanceCard);
+
+  // ── INDICADORES CON GAUGE SVG ──
   const kpiCard = document.createElement('div');
   kpiCard.className = 'card';
-  const debtToIncome = income>0 ? ((state.debts.reduce((s,d)=>s+d.monthly,0)/income)*100).toFixed(1) : 0;
-  const debtToAsset  = totalAssets>0 ? ((totalDebt/totalAssets)*100).toFixed(1) : 0;
   const indicators = [
-    { label:'Tasa de Ahorro', value:`${savingRate}%`, good: parseFloat(savingRate)>=20, tip:'Ideal: >20%' },
-    { label:'Deuda / Ingresos', value:`${debtToIncome}%`, good: parseFloat(debtToIncome)<=35, tip:'Ideal: <35%' },
-    { label:'Deuda / Activos', value:`${debtToAsset}%`, good: parseFloat(debtToAsset)<=50, tip:'Ideal: <50%' },
-    { label:'Ganancia inversiones', value:`${investCost>0?((investGain/investCost)*100).toFixed(1):0}%`, good: investGain>=0, tip:'Rentabilidad total' },
+    { label:'Tasa de Ahorro', value:parseFloat(savingRate), display:`${savingRate}%`, good:parseFloat(savingRate)>=20, tip:'Ideal >20%', max:50 },
+    { label:'Deuda / Ingresos', value:parseFloat(debtToIncome), display:`${debtToIncome}%`, good:parseFloat(debtToIncome)<=35, tip:'Ideal <35%', max:100 },
+    { label:'Deuda / Activos', value:parseFloat(debtToAsset), display:`${debtToAsset}%`, good:parseFloat(debtToAsset)<=50, tip:'Ideal <50%', max:100 },
+    { label:'Rentabilidad inversión', value:parseFloat(rentInvest), display:`${rentInvest}%`, good:parseFloat(rentInvest)>=0, tip:'Ganancia total', max:50 },
   ];
-  kpiCard.innerHTML = `
-    <div class="card-title">📐 Indicadores Financieros</div>
-    ${indicators.map(ind=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
-        <div>
-          <div style="font-size:13px;font-weight:600">${ind.label}</div>
-          <div style="font-size:11px;color:var(--muted)">${ind.tip}</div>
+  kpiCard.innerHTML = `<div class="card-title">📐 Indicadores Clave</div>`;
+  indicators.forEach(ind => {
+    const pct = Math.min(Math.max((ind.value/ind.max)*100,0),100);
+    const color = ind.good ? '#00e5a0' : '#ff4d6d';
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)';
+    item.innerHTML = `
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px">${ind.label}</div>
+        <div style="background:var(--border);border-radius:99px;height:5px;width:100%;margin-top:5px;overflow:hidden">
+          <div style="width:${pct}%;background:${color};height:100%;border-radius:99px;transition:width 1s ease;box-shadow:0 0 6px ${color}55"></div>
         </div>
-        <div style="text-align:right">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:${ind.good?'var(--green)':'var(--red)'}">${ind.value}</div>
-          <div style="font-size:10px;color:${ind.good?'var(--green)':'var(--red)'}">${ind.good?'✅ Saludable':'⚠️ Revisar'}</div>
-        </div>
-      </div>`).join('')}
-  `;
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${ind.tip}</div>
+      </div>
+      <div style="text-align:right;margin-left:14px;min-width:70px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:800;color:${color}">${ind.display}</div>
+        <div style="font-size:10px;color:${color}">${ind.good?'✅ OK':'⚠️ Revisar'}</div>
+      </div>`;
+    kpiCard.appendChild(item);
+  });
   container.appendChild(kpiCard);
 
-  // ── INVERSIONES resumen ──
+  // ── PORTAFOLIO si hay inversiones ──
   if (state.investments.length > 0) {
     const invCard = document.createElement('div');
     invCard.className = 'card';
@@ -827,10 +904,9 @@ function renderFinancial(container) {
           if(!zVal)return '';
           const pct=totalInvest>0?Math.round((zVal/totalInvest)*100):0;
           const cfg=ZONE_CONFIG[z];
-          return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span>${cfg.emoji} ${cfg.label.split('/')[0]}</span><span style="color:var(--muted2)">${fmt(zVal)} · ${pct}%</span></div><div style="background:var(--border);height:5px;border-radius:99px;overflow:hidden"><div style="width:${pct}%;background:${cfg.color};height:100%;border-radius:99px"></div></div></div>`;
+          return `<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span>${cfg.emoji} ${cfg.label.split('/')[0]}</span><span style="color:var(--muted2)">${fmt(zVal)} · ${pct}%</span></div><div style="background:var(--border);height:6px;border-radius:99px;overflow:hidden"><div style="width:${pct}%;background:${cfg.color};height:100%;border-radius:99px;box-shadow:0 0 5px ${cfg.color}55;transition:width 1s"></div></div></div>`;
         }).join('')}
-      </div>
-    `;
+      </div>`;
     container.appendChild(invCard);
   }
 }
